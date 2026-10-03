@@ -1,8 +1,9 @@
 """La théorie des groupes, d'Évariste Galois à ton écran.
 
-Un petit laboratoire interactif : des cas illustrés (horloge, triangle,
-carré, cartes à jouer, faux groupes, quaternions, équation du 5e degré)
-et un quiz pour s'entraîner.
+Un petit laboratoire interactif : 16 cas illustrés (horloge, triangle, carré,
+cartes à jouer, faux groupes, quaternions, équation du 5e degré, puis quotients,
+classification, Sylow, Cayley, Burnside, cryptographie, Rubik, groupes de Galois de
+polynômes) et un quiz pour s'entraîner.
 
 Exemples :
     python groups-theory-EGalois.py                    # menu interactif
@@ -17,6 +18,7 @@ import os
 import sys
 
 import catalogue as cat
+from cas_avances import CAS_AVANCES
 from catalogue import depuis_cycles, notation_cyclique
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -275,6 +277,9 @@ CAS = {
     "quatre": ("Même taille, autre groupe : V4, Q8...", cas_quatre),
     "galois": ("Galois et l'équation du 5e degré", cas_galois),
 }
+
+
+CAS.update(CAS_AVANCES)
 
 
 def menu(montrer):
