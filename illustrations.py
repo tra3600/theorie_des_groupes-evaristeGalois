@@ -395,3 +395,134 @@ def series_derivees(groupes):
     _finir(fig, "Galois : une équation est résoluble par radicaux ⇔ son groupe est résoluble",
            "On prend les commutateurs aba⁻¹b⁻¹ encore et encore : arrive-t-on à {e} ?", bas=0)
     return fig
+
+
+# ----------------------------------------------------------------------
+# Figures du laboratoire avancé
+# ----------------------------------------------------------------------
+def puissances_modulaires(p, gs):
+    """Pour chaque g de ``gs`` : les points 1..p−1 sur un cercle, une flèche de x vers g·x.
+
+    Un générateur trace un seul grand cycle ; sinon la multiplication se découpe en cycles plus courts."""
+    gs = [gs] if isinstance(gs, int) else list(gs)
+    fig, axes = plt.subplots(1, len(gs), figsize=(5.6 * len(gs), 5.8))
+    axes = [axes] if len(gs) == 1 else list(axes)
+    pts = {x: (math.sin(2 * math.pi * x / p), math.cos(2 * math.pi * x / p)) for x in range(1, p)}
+    for ax, g in zip(axes, gs):
+        ordre, x = 1, g % p
+        while x != 1:
+            x = x * g % p
+            ordre += 1
+        for x in range(1, p):
+            y = x * g % p
+            if y == x:
+                continue
+            ax.add_patch(FancyArrowPatch(pts[x], pts[y], arrowstyle="-|>", mutation_scale=11,
+                                         color=SERIES[0], lw=1.3, shrinkA=13, shrinkB=13,
+                                         connectionstyle="arc3,rad=0.15"))
+        orbite = set()
+        x = 1
+        while x not in orbite:
+            orbite.add(x)
+            x = x * g % p
+        for x, (px, py) in pts.items():
+            ax.scatter([px], [py], s=520, color=SERIES[2] if x in orbite else GRILLE, zorder=3,
+                       edgecolor=ENCRE_2)
+            ax.text(px, py, str(x), ha="center", va="center", fontsize=10, zorder=4)
+        ax.set_xlim(-1.35, 1.35)
+        ax.set_ylim(-1.35, 1.35)
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.set_title(f"× {g} : ordre {ordre}" + (" = p − 1 : générateur ✔" if ordre == p - 1
+                                                  else " < p − 1 : pas un générateur"),
+                     fontsize=11, color=BON if ordre == p - 1 else MAUVAIS)
+    _finir(fig, f"Multiplier modulo {p}", "vert : l'orbite de 1, c'est-à-dire les puissances de g")
+    return fig
+
+
+def barres_burnside(series, titre, sous_titre=None):
+    """series : {étiquette: (valeurs par k)} ; barres groupées, k = nombre de couleurs."""
+    ks = sorted(next(iter(series.values())))
+    fig, ax = plt.subplots(figsize=(9, 5))
+    largeur = 0.8 / len(series)
+    for i, (nom, vals) in enumerate(series.items()):
+        xs = [j + i * largeur for j in range(len(ks))]
+        barres = ax.bar(xs, [vals[k] for k in ks], largeur, label=nom, color=SERIES[i % len(SERIES)])
+        for b in barres:
+            ax.text(b.get_x() + b.get_width() / 2, b.get_height(), f"{int(b.get_height())}",
+                    ha="center", va="bottom", fontsize=8, color=ENCRE_2)
+    ax.set_xticks([j + 0.4 - largeur / 2 for j in range(len(ks))], [f"{k} couleur{'s' if k > 1 else ''}" for k in ks])
+    ax.set_yscale("log")
+    ax.set_ylabel("coloriages différents (échelle log)")
+    ax.legend(frameon=False)
+    ax.grid(axis="y", color=GRILLE)
+    ax.spines[["top", "right"]].set_visible(False)
+    _finir(fig, titre, sous_titre)
+    return fig
+
+
+def distribution_des_ordres(distribution, titre, sous_titre=None):
+    """Histogramme des ordres d'éléments tirés au hasard : {ordre: effectif}."""
+    fig, ax = plt.subplots(figsize=(10, 4.8))
+    ordres = sorted(distribution)
+    total = sum(distribution.values())
+    ax.bar(range(len(ordres)), [100 * distribution[o] / total for o in ordres], color=SERIES[0])
+    ax.set_xticks(range(len(ordres)), [str(o) for o in ordres], rotation=60, fontsize=8)
+    ax.set_xlabel("ordre de l'élément")
+    ax.set_ylabel("% des éléments tirés")
+    ax.grid(axis="y", color=GRILLE)
+    ax.spines[["top", "right"]].set_visible(False)
+    _finir(fig, titre, sous_titre)
+    return fig
+
+
+def classification(groupes_par_ordre):
+    """Tableau des groupes d'ordre 1 à 12 avec leurs invariants (✔/✘)."""
+    lignes, couleurs = [], []
+    for n, groupes in groupes_par_ordre.items():
+        for G in groupes:
+            lignes.append([str(n), G.nom, "oui" if G.est_abelien() else "non",
+                           "oui" if G.est_cyclique() else "non", str(len(G.centre())),
+                           str(len(G.sous_groupes())), "oui" if G.est_resoluble() else "non"])
+            couleurs.append(FOND if n % 2 else "#eeeeea")
+    fig, ax = plt.subplots(figsize=(9.5, 0.3 * len(lignes) + 1.4))
+    ax.axis("off")
+    tab = ax.table(cellText=lignes, colLabels=["ordre", "groupe", "abélien", "cyclique", "|centre|",
+                                               "sous-groupes", "résoluble"],
+                   cellLoc="center", bbox=[0, 0, 1, 1])
+    tab.auto_set_font_size(False)
+    tab.set_fontsize(9)
+    tab.scale(1, 1.25)
+    for (i, j), cell in tab.get_celld().items():
+        cell.set_edgecolor(GRILLE)
+        if i == 0:
+            cell.set_facecolor(SERIES[0])
+            cell.get_text().set_color("white")
+            cell.get_text().set_fontweight("bold")
+        else:
+            cell.set_facecolor(couleurs[i - 1])
+    _finir(fig, "Les 24 groupes d'ordre ≤ 12", "il n'y en a que 24 : chacun a sa carte d'identité")
+    return fig
+
+
+def frobenius(statistiques, titre, sous_titre=None):
+    """statistiques : {nom: (observé {type: n}, total, théorique {type: proportion})}."""
+    types = sorted({t for obs, _, th in statistiques.values() for t in list(obs) + list(th)},
+                   key=lambda t: (-len(t), t), reverse=True)
+    fig, axes = plt.subplots(1, len(statistiques), figsize=(6.4 * len(statistiques), 4.8), sharey=True)
+    axes = [axes] if len(statistiques) == 1 else list(axes)
+    for ax, (nom, (obs, total, th)) in zip(axes, statistiques.items()):
+        xs = range(len(types))
+        ax.bar([x - 0.2 for x in xs], [100 * obs.get(t, 0) / total for t in types], 0.4,
+               color=SERIES[0], label=f"observé ({total} premiers)")
+        ax.bar([x + 0.2 for x in xs], [100 * th.get(t, 0) for t in types], 0.4,
+               color=SERIES[1], label="prédit par Chebotarev")
+        ax.set_xticks(list(xs), ["+".join(map(str, t)) for t in types], rotation=60, fontsize=8)
+        ax.set_title(nom, fontsize=11, fontweight="bold")
+        ax.set_xlabel("degrés des facteurs de f modulo p")
+        ax.legend(frameon=False, fontsize=8)
+        ax.grid(axis="y", color=GRILLE)
+        ax.spines[["top", "right"]].set_visible(False)
+    axes[0].set_ylabel("% des nombres premiers")
+    _finir(fig, titre, sous_titre)
+    return fig

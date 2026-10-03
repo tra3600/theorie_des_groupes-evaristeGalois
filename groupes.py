@@ -324,6 +324,121 @@ class Groupe:
         return classes
 
     # ------------------------------------------------------------------
+    # Centre, quotients, produits, homomorphismes
+    # ------------------------------------------------------------------
+    def centre(self):
+        """Z(G) : les éléments qui commutent avec tous les autres."""
+        n = len(self)
+        return [self.elements[i] for i in range(n)
+                if all(self.table[i][j] == self.table[j][i] for j in range(n))]
+
+    def centralisateur(self, a):
+        """C(a) : les éléments qui commutent avec a."""
+        i = self._index[a]
+        return [self.elements[j] for j in range(len(self))
+                if self.table[i][j] == self.table[j][i]]
+
+    def equation_des_classes(self):
+        """|G| = |Z(G)| + Σ [G : C(a)] sur un représentant a de chaque classe non centrale.
+
+        Retourne (taille du centre, [tailles des classes non triviales])."""
+        classes = self.classes_de_conjugaison()
+        return len(self.centre()), sorted(len(c) for c in classes if len(c) > 1)
+
+    def normalisateur(self, H):
+        """N(H) = {g : gHg⁻¹ = H} (le plus grand sous-groupe où H est distingué)."""
+        h = {self._index[x] for x in H}
+        res = []
+        for g in range(len(self)):
+            gi = self._inv[g]
+            if {self.table[self.table[g][x]][gi] for x in h} == h:
+                res.append(self.elements[g])
+        return res
+
+    def quotient(self, N, nom=None):
+        """G/N : le groupe des classes aN, pour un sous-groupe distingué N."""
+        if not self.est_distingue(N):
+            raise ValueError("Le quotient n'existe que pour un sous-groupe distingué.")
+        classes = [frozenset(c) for c in self.classes_a_gauche(N)]
+        trouver = {x: c for c in classes for x in c}
+
+        def produit(c1, c2):
+            return trouver[self.op(next(iter(c1)), next(iter(c2)))]
+
+        def etiquette(c):
+            return "{" + ",".join(self.etiquette(x) for x in sorted(c, key=self._index.get)) + "}"
+
+        return Groupe(classes, produit, nom=nom or f"{self.nom}/N", etiquette=etiquette)
+
+    def produit_direct(self, autre, nom=None):
+        """G × H, avec l'opération composante par composante."""
+        elems = [(a, b) for a in self.elements for b in autre.elements]
+        return Groupe(elems, lambda x, y: (self.op(x[0], y[0]), autre.op(x[1], y[1])),
+                      nom=nom or f"{self.nom}×{autre.nom}",
+                      etiquette=lambda x: f"({self.etiquette(x[0])},{autre.etiquette(x[1])})")
+
+    def est_homomorphisme(self, f, autre):
+        """f (dict ou fonction) vérifie-t-elle f(a·b) = f(a)·f(b) vers ``autre`` ?"""
+        g = f if callable(f) else f.__getitem__
+        return all(g(self.op(a, b)) == autre.op(g(a), g(b))
+                   for a in self.elements for b in self.elements)
+
+    def noyau(self, f, autre):
+        """{a : f(a) = neutre de l'arrivée}."""
+        g = f if callable(f) else f.__getitem__
+        return [a for a in self.elements if g(a) == autre.neutre]
+
+    def image(self, f):
+        g = f if callable(f) else f.__getitem__
+        vus = []
+        for a in self.elements:
+            y = g(a)
+            if y not in vus:
+                vus.append(y)
+        return vus
+
+    def est_simple(self):
+        """Simple : seuls {e} et G sont distingués (on regarde la clôture normale de chaque classe)."""
+        if len(self) == 1:
+            return False
+        for classe in self.classes_de_conjugaison():
+            if classe == [self.neutre]:
+                continue
+            if len(self._cloture(self._index[x] for x in classe)) != len(self):
+                return False
+        return True
+
+    def sylow(self, p):
+        """Un p-sous-groupe de Sylow P et le nombre n_p de ses conjugués.
+
+        P est construit pas à pas : tant que |P| < p^a, on cherche dans le normalisateur de P
+        un élément g hors de P tel que <P, g> soit encore un p-groupe de taille p·|P|."""
+        n, a = len(self), 0
+        while n % p == 0:
+            n //= p
+            a += 1
+        cible = p ** a
+        P = [self.neutre]
+        while len(P) < cible:
+            for g in self.normalisateur(P):
+                if g in P:
+                    continue
+                Q = self.engendre(*P, g)
+                if len(Q) == p * len(P):
+                    P = Q
+                    break
+            else:
+                raise RuntimeError("construction de Sylow échouée")
+        conjugues = {frozenset(self.conjugue(g, x) for x in P) for g in self.elements}
+        return P, len(conjugues)
+
+    def representation_reguliere(self):
+        """Théorème de Cayley : chaque g agit sur G par x ↦ g·x, c'est une permutation des indices.
+
+        Retourne {g: permutation (tuple d'indices)} ; g ↦ perm(g) est un homomorphisme injectif G → S_|G|."""
+        return {g: tuple(self.table[self._index[g]][j] for j in range(len(self))) for g in self.elements}
+
+    # ------------------------------------------------------------------
     # Résolubilité (le cœur de la théorie de Galois)
     # ------------------------------------------------------------------
     def commutateur(self, a, b):

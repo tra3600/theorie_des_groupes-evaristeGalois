@@ -208,3 +208,89 @@ def faux_multiplication_avec_zero(n=5):
 def faux_maximum():
     """({0,1,2,3}, max) : associative, neutre 0, mais max(3, x) ne vaut jamais 0."""
     return Groupe(range(4), max, nom="({0..3}, max)")
+
+
+# ----------------------------------------------------------------------
+# Plus de groupes : produits, dicycliques, groupes affines, matrices
+# ----------------------------------------------------------------------
+def dicyclique(n):
+    """Dic_n d'ordre 4n : a^(2n) = 1, x² = a^n, x·a·x⁻¹ = a⁻¹. Dic_2 est le groupe Q8 des quaternions."""
+    def op(u, v):
+        (k1, e1), (k2, e2) = u, v
+        if e1 == 0:
+            return ((k1 + k2) % (2 * n), e2)
+        if e2 == 0:
+            return ((k1 - k2) % (2 * n), 1)
+        return ((k1 - k2 + n) % (2 * n), 0)
+    elems = [(k, e) for e in (0, 1) for k in range(2 * n)]
+    return Groupe(elems, op, nom=f"Dic{n}",
+                  etiquette=lambda x: f"a{x[0]}" + ("x" if x[1] else ""))
+
+
+def groupe_affine(p):
+    """AGL(1, p) : les fonctions x ↦ ax + b modulo p (a ≠ 0), d'ordre p(p−1).
+    Pour p = 5, c'est le groupe d'ordre 20 du polynôme x⁵ − 2."""
+    elems = [(a, b) for a in range(1, p) for b in range(p)]
+    return Groupe(elems, lambda f, g: (f[0] * g[0] % p, (f[0] * g[1] + f[1]) % p),
+                  nom=f"AGL(1,{p})", etiquette=lambda f: f"{f[0]}x+{f[1]}")
+
+
+def permutations_du_groupe_affine(p):
+    """Les p(p−1) fonctions x ↦ ax + b, comme permutations de {0..p−1}."""
+    return [tuple((a * x + b) % p for x in range(p)) for a in range(1, p) for b in range(p)]
+
+
+def _matrices_2x2(p):
+    return [((a, b), (c, d)) for a in range(p) for b in range(p)
+            for c in range(p) for d in range(p)]
+
+
+def _produit_matrices(p):
+    def mul(m, n):
+        return tuple(tuple(sum(m[i][k] * n[k][j] for k in range(2)) % p for j in range(2))
+                     for i in range(2))
+    return mul
+
+
+def sl2_mod(p):
+    """SL(2, Z/pZ) : matrices 2×2 de déterminant 1 modulo p (d'ordre p(p²−1))."""
+    elems = [m for m in _matrices_2x2(p) if (m[0][0] * m[1][1] - m[0][1] * m[1][0]) % p == 1]
+    return Groupe(elems, _produit_matrices(p), nom=f"SL(2,{p})",
+                  etiquette=lambda m: "".join(str(x) for ligne in m for x in ligne))
+
+
+def gl2_mod(p):
+    """GL(2, Z/pZ) : matrices 2×2 inversibles modulo p. GL(2, Z/2Z) est isomorphe à S3."""
+    elems = [m for m in _matrices_2x2(p) if (m[0][0] * m[1][1] - m[0][1] * m[1][0]) % p != 0]
+    return Groupe(elems, _produit_matrices(p), nom=f"GL(2,{p})",
+                  etiquette=lambda m: "".join(str(x) for ligne in m for x in ligne))
+
+
+def groupes_d_ordre(n):
+    """Tous les groupes d'ordre n ≤ 12 (à isomorphisme près), un représentant chacun.
+
+    Il y en a 1, 1, 1, 2, 1, 2, 1, 5, 2, 2, 1, 5 pour n = 1..12."""
+    Z = cyclique
+
+    def Zp(*ns):
+        G = Z(ns[0])
+        for k in ns[1:]:
+            G = G.produit_direct(Z(k))
+        return G
+
+    def renomme(G, nom):
+        G.nom = nom
+        return G
+
+    table = {
+        1: [Z(1)], 2: [Z(2)], 3: [Z(3)], 4: [Z(4), renomme(Zp(2, 2), "Z/2×Z/2")], 5: [Z(5)],
+        6: [Z(6), symetrique(3)], 7: [Z(7)],
+        8: [Z(8), renomme(Zp(4, 2), "Z/4×Z/2"), renomme(Zp(2, 2, 2), "Z/2×Z/2×Z/2"),
+            diedral(4), quaternions()],
+        9: [Z(9), renomme(Zp(3, 3), "Z/3×Z/3")],
+        10: [Z(10), diedral(5)], 11: [Z(11)],
+        12: [Z(12), renomme(Zp(6, 2), "Z/6×Z/2"), alterne(4), diedral(6), dicyclique(3)],
+    }
+    if n not in table:
+        raise ValueError("seuls les ordres 1 à 12 sont catalogués")
+    return table[n]
